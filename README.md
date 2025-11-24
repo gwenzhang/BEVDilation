@@ -1,187 +1,97 @@
-# BEVDet
+# BEVDilation: LiDAR-Centric Multi-Modal Fusion for 3D Object Detection
+
+[![arXiv](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)]()
+
+This repo is the official implementation of AAAI26 paper [BEVDilation: LiDAR-Centric Multi-Modal Fusion for 3D Object Detection](). Our BEVDilation achieves state-of-the-art performance on nuScene datasets. It prioritizes Li-
+DAR information in the multi-modal fusion, achieving effective and robust fusion.
+
+## 🔥News
+-[25-11-24] BEVDilation released on [arxiv](https://arxiv.org/abs/2406.10700)   
+-[25-11-24] BEVDilation is accepted by **AAAI26**!
+
+## 📘TODO
+- [ ] Release the [arXiv]() version.
+- [ ] Clean up and release the code.
+<!-- - [x] Release code of Waymo.
+- [ ] Release code of NuScenes.
+- [ ] Release code of ERFs visualization.
+- [ ] Merge Voxel Mamba to [OpenPCDet](https://github.com/open-mmlab/OpenPCDet). -->
+
+<!-- ## 🏆Main Results
+#### Waymo Open Dataset
+Validation set  
+|  Model  | mAPH_L1 | mAPH_L2 | Veh_L1 | Veh_L2 | Ped_L1 | Ped_L2 | Cyc_L1 | Cyc_L2 | Log |
+|---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+|  [Voxel Mamba](tools/cfgs/voxel_mamba_models/voxel_mamba_waymo.yaml) | 79.6  |  73.6  | 80.8/80.3 | 72.6/72.2 | 85.0/80.8 | 77.7/73.6 | 78.6/77.6 | 75.7/74.8 | [Log](https://drive.google.com/file/d/1Kq7WR9OV2kByKUUkurZp878mERKWBJi5/view?usp=sharing) | 
+
+Test set
+|  Model  | mAPH_L1 | mAPH_L2 | Veh_L1 | Veh_L2 | Ped_L1 | Ped_L2 | Cyc_L1 | Cyc_L2 | Leaderboard |
+|---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+|  [Voxel Mamba](tools/cfgs/voxel_mamba_models/voxel_mamba_waymo.yaml) | 79.6  |  74.3  | 84.4/84.0 | 77.0/76.6 | 84.8/80.6 | 79.0/74.9 | 75.4/74.3 | 72.6/71.5 | [leaderboard](https://waymo.com/open/challenges/detection-3d/results/d57ccce9-36ad/1718951969931000/) | 
 
 
-![](./resources/nds-fps-dal.png)
+#### nuScene Dataset
+Validation set  
+|  Model  | mAP | NDS | mATE | mASE | mAOE | mAVE| mAAE | ckpt | Log |
+|---------|---------|--------|---------|---------|--------|---------|--------|--------|--------|
+|  [Voxel Mamba]() | 67.5 | 71.9 | 26.7 | 25.0 | 25.8 | 21.8 | 18.9| [ckpt]()| [Log]()|  
+
+Test set  
+|  Model  | mAP | NDS | mATE | mASE | mAOE | mAVE| mAAE | Leaderboard | Submission |
+|---------|---------|--------|---------|---------|--------|---------|--------|--------|--------|
+|  [Voxel Mamba]() | 69.0 | 73.0 | 24.3 | 23.0 | 30.9 | 23.7 | 13.3| [leaderboard](https://www.nuscenes.org/object-detection?externalData=all&mapData=all&modalities=Lidar)| [Submission](https://drive.google.com/file/d/1k1F5H0sqvJGyKzDN2_bCHcY-o0gKCwmo/view?usp=sharing)|  
 
 
-## News
-- **2024.07.01** DAL is accepted to ECCV24.
-- **2023.11.08** Support DAL for 3D object detection with LiDAR-camera fusion. [[Arxiv](https://arxiv.org/abs/2311.07152)]
+Voxel Mamba's result on Waymo compared with other leading methods.
+All the experiments are evaluated on an NVIDIA A100 GPU with the same environment.
+We hope that our Voxel Mamba can provide a potential group-free solution for efficiently handling sparse point clouds for 3D tasks.
+<div align="left">
+  <img src="docs/Speed_Performance.png" width="500"/>
+</div>
 
-- [History](./docs/en/news.md)
+## 🚀Usage
+### Installation
+Please refer to [INSTALL.md](docs/INSTALL.md) for installation.
 
-## Main Results
-### Nuscenes Detection
-| Config                                                                    | mAP        | NDS        | Latency(ms) | FPS  | Model                                                                                          | Log                                                                                            |
-| ------------------------------------------------------------------------- | ---------- | ---------- | ---- | ---- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [**BEVDet-R50**](configs/bevdet/bevdet-r50.py)                            | 28.3       | 35.0       | 29.1/4.2/33.3| 30.7 | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-R50-CBGS**](configs/bevdet/bevdet-r50-cbgs.py)                  | 31.3       | 39.8       |28.9/4.3/33.2 |30.1 | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-R50-4D-CBGS**](configs/bevdet/bevdet-r50-4d-cbgs.py) | 31.4/35.4# | 44.7/44.9# | 29.1/4.3/33.4|30.0 | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |[baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1)|
-| [**BEVDet-R50-4D-Depth-CBGS**](configs/bevdet/bevdet-r50-4d-depth-cbgs.py) | 36.1/36.2# | 48.3/48.4# |35.7/4.0/39.7 |25.2 | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-R50-4D-Stereo-CBGS**](configs/bevdet/bevdet-r50-4d-stereo-cbgs.py) | 38.2/38.4# | 49.9/50.0# |-  |-  | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-R50-4DLongterm-CBGS**](configs/bevdet/bevdet-r50-4dlongterm-cbgs.py) | 34.8/35.4# | 48.2/48.7# | 30.8/4.2/35.0|28.6 | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-R50-4DLongterm-Depth-CBGS**](configs/bevdet/bevdet-r50-4d-depth-cbgs.py) | 39.4/39.9# | 51.5/51.9# |38.4/4.0/42.4 |23.6 | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-R50-4DLongterm-Stereo-CBGS**](configs/bevdet/bevdet-r50-4dlongterm-stereo-cbgs.py) | 41.1/41.5# | 52.3/52.7# |- |- | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-STBase-4D-Stereo-512x1408-CBGS**](configs/bevdet/bevdet-stbase-4d-stereo-512x1408-cbgs.py) | 47.2# | 57.6# |-  |-  | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-||
-| [**DAL-Tiny**](configs/dal/dal-tiny.py) | 67.4 | 71.3 |-  |16.6 | [baidu](https://pan.baidu.com/s/15rmJL_SWUeQEXG9dYYl8gA?pwd=36g5) | [baidu](https://pan.baidu.com/s/15rmJL_SWUeQEXG9dYYl8gA?pwd=36g5) |
-| [**DAL-Base**](configs/dal/dal-base.py) | 70.0 | 73.4 |-  |10.7 | [baidu](https://pan.baidu.com/s/15rmJL_SWUeQEXG9dYYl8gA?pwd=36g5) | [baidu](https://pan.baidu.com/s/15rmJL_SWUeQEXG9dYYl8gA?pwd=36g5) |
-| [**DAL-Large**](configs/dal/dal-large.py) | 71.5 | 74.0 |-  |6.10 | [baidu](https://pan.baidu.com/s/15rmJL_SWUeQEXG9dYYl8gA?pwd=36g5) | [baidu](https://pan.baidu.com/s/15rmJL_SWUeQEXG9dYYl8gA?pwd=36g5) |
+### Dataset Preparation
+Please follow the instructions from [OpenPCDet](https://github.com/open-mmlab/OpenPCDet/blob/master/docs/GETTING_STARTED.md). We adopt the same data generation process.
 
-\# align previous frame bev feature during the view transformation.
+### Generate Hilbert Template
+```
+cd data
+mkdir hilbert
+python ./tools/hilbert_curves/create_hilbert_curve_template.py
+```
+You can also download Hilbert Template files from [Google Drive](https://drive.google.com/file/d/1Bts6Jt-GCcLtF27BoH8uRtAjdHvwmrf2/view?usp=sharing) or [BaiduYun](https://pan.baidu.com/s/1I9xTjR7PbKRFkbwiLJN2tQ)(code: kubf).
 
-Depth: Depth supervised from Lidar as BEVDepth.
-
-Longterm: cat 8 history frame in temporal modeling. 1 by default. 
-
-Stereo: A private implementation that concat cost-volumn with image feature before executing model.view_transformer.depth_net.
-
-The latency includes Network/Post-Processing/Total. Training without CBGS is deprecated.
-
-
-### Nuscenes Occupancy
-| Config                                                                    | mIOU       | Model | Log                                                                                            |
-| ------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [**BEVDet-Occ-R50-4D-Stereo-2x**](configs/bevdet_occ/bevdet-occ-r50-4d-stereo-24e.py)                                 | 36.1     | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-Occ-R50-4D-Stereo-2x-384x704**](configs/bevdet_occ/bevdet-occ-r50-4d-stereo-24e_384704.py)                  | 37.3     | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-Occ-R50-4DLongterm-Stereo-2x-384x704**](configs/bevdet_occ/bevdet-occ-r50-4dlongterm-stereo-24e_384704.py)  | 39.3     | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-| [**BEVDet-Occ-STBase-4D-Stereo-2x**](configs/bevdet_occ/bevdet-occ-stbase-4d-stereo-512x1408-24e.py)                  | 42.0     | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) | [baidu](https://pan.baidu.com/s/1237QyV18zvRJ1pU3YzRItw?pwd=npe1) |
-## Inference latency with different backends
-
-| Backend       | 256x704 | 384x1056 | 512x1408 | 640x1760 |
-| ------------- | ------- | -------- | -------- | -------- |
-| PyTorch       | 28.9    | 49.7     | 78.7    | 113.4    |
-| TensorRT      | 14.0    | 22.8     | 36.5     | 53.0     |
-| TensorRT-FP16 | 4.94     | 7.96     | 12.4     | 17.9     |
-| TensorRT-INT8 | 2.93    | 4.41      | 6.58      | 9.19     |                                      
-| TensorRT-INT8(Xavier) | 25.0    | -      | -     | -    | 
-
-- Evaluate with [**BEVDet-R50-CBGS**](configs/bevdet/bevdet-r50-cbgs.py) on a RTX 3090 GPU by default. We omit the postprocessing, which spends up to 5 ms with the PyTorch backend.
-
-## Get Started
-
-#### Installation and Data Preparation
-
-step 1. Please prepare environment as that in [Docker](docker/Dockerfile).
-
-step 2. Prepare bevdet repo by.
-```shell script
-git clone https://github.com/HuangJunJie2017/BEVDet.git
-cd BEVDet
-pip install -v -e .
+### Training
+```
+# multi-gpu training
+cd tools
+bash scripts/dist_train.sh 8 --cfg_file ./cfgs/voxel_mamba_models/voxel_mamba_waymo.yaml # for waymo
 ```
 
-step 3. Prepare nuScenes dataset as introduced in [nuscenes_det.md](docs/en/datasets/nuscenes_det.md) and create the pkl for BEVDet by running:
-```shell
-python tools/create_data_bevdet.py
+### Test
 ```
-step 4. For Occupancy Prediction task, download (only) the 'gts' from [CVPR2023-3D-Occupancy-Prediction](https://github.com/CVPR2023-3D-Occupancy-Prediction/CVPR2023-3D-Occupancy-Prediction) and arrange the folder as:
-```shell script
-└── nuscenes
-    ├── v1.0-trainval (existing)
-    ├── sweeps  (existing)
-    ├── samples (existing)
-    └── gts (new)
+# multi-gpu testing
+cd tools
+bash scripts/dist_test.sh 8 --cfg_file <CONFIG_FILE> --ckpt <CHECKPOINT_FILE>
 ```
 
-#### Train model
-```shell
-# single gpu
-python tools/train.py $config
-# multiple gpu
-./tools/dist_train.sh $config num_gpu
+## Citation
+Please consider citing our work as follows if it is helpful.
 ```
-
-#### Test model
-```shell
-# single gpu
-python tools/test.py $config $checkpoint --eval mAP
-# multiple gpu
-./tools/dist_test.sh $config $checkpoint num_gpu --eval mAP
-```
-
-#### Estimate the inference speed of BEVDet
-
-```shell
-# with pre-computation acceleration
-python tools/analysis_tools/benchmark.py $config $checkpoint --fuse-conv-bn
-# 4D with pre-computation acceleration
-python tools/analysis_tools/benchmark_sequential.py $config $checkpoint --fuse-conv-bn
-# view transformer only
-python tools/analysis_tools/benchmark_view_transformer.py $config $checkpoint
-```
-
-#### Estimate the flops of BEVDet
-
-```shell
-python tools/analysis_tools/get_flops.py configs/bevdet/bevdet-r50.py --shape 256 704
-```
-
-#### Visualize the predicted result.
-
-- Private implementation. (Visualization remotely/locally)
-
-```shell
-python tools/test.py $config $checkpoint --format-only --eval-options jsonfile_prefix=$savepath
-python tools/analysis_tools/vis.py $savepath/pts_bbox/results_nusc.json
-```
-
-#### Convert to TensorRT and test inference speed.
-
-```shell
-1. install mmdeploy from https://github.com/HuangJunJie2017/mmdeploy
-2. convert to TensorRT
-python tools/convert_bevdet_to_TRT.py $config $checkpoint $work_dir --fuse-conv-bn --fp16 --int8
-3. test inference speed
-python tools/analysis_tools/benchmark_trt.py $config $engine
-```
-
-## Acknowledgement
-
-This project is not possible without multiple great open-sourced code bases. We list some notable examples below.
-
-- [open-mmlab](https://github.com/open-mmlab)
-- [CenterPoint](https://github.com/tianweiy/CenterPoint)
-- [Lift-Splat-Shoot](https://github.com/nv-tlabs/lift-splat-shoot)
-- [Swin Transformer](https://github.com/microsoft/Swin-Transformer)
-- [BEVFusion](https://github.com/mit-han-lab/bevfusion)
-- [BEVDepth](https://github.com/Megvii-BaseDetection/BEVDepth)
-
-Beside, there are some other attractive works extend the boundary of BEVDet.
-
-- [BEVerse](https://github.com/zhangyp15/BEVerse)  for multi-task learning.
-- [BEVStereo](https://github.com/Megvii-BaseDetection/BEVStereo)  for stero depth estimation.
-
-## Bibtex
-
-If this work is helpful for your research, please consider citing the following BibTeX entries.
-
-```
-@article{huang2023dal,
-  title={Detecting As Labeling: Rethinking LiDAR-camera Fusion in 3D Object Detection},
-  author={Huang, Junjie and Ye, Yun and Liang, Zhujin and Shan, Yi and Du, Dalong},
-  journal={arXiv preprint arXiv:2311.07152},
-  year={2023}
-}
-
-@article{huang2022bevpoolv2,
-  title={BEVPoolv2: A Cutting-edge Implementation of BEVDet Toward Deployment},
-  author={Huang, Junjie and Huang, Guan},
-  journal={arXiv preprint arXiv:2211.17111},
-  year={2022}
-}
-
-@article{huang2022bevdet4d,
-  title={BEVDet4D: Exploit Temporal Cues in Multi-camera 3D Object Detection},
-  author={Huang, Junjie and Huang, Guan},
-  journal={arXiv preprint arXiv:2203.17054},
-  year={2022}
-}
-
-@article{huang2021bevdet,
-  title={BEVDet: High-performance Multi-camera 3D Object Detection in Bird-Eye-View},
-  author={Huang, Junjie and Huang, Guan and Zhu, Zheng and Yun, Ye and Du, Dalong},
-  journal={arXiv preprint arXiv:2112.11790},
-  year={2021}
+@article{zhang2024voxel,
+  title={Voxel Mamba: Group-Free State Space Models for Point Cloud based 3D Object Detection},
+  author={Zhang, Guowen and Fan, Lue and He, Chenhang and Lei, Zhen and Zhang, Zhaoxiang and Zhang, Lei},
+  journal={arXiv preprint arXiv:2406.10700},
+  year={2024}
 }
 ```
+
+## Acknowledgments
+Voxel Mamba is based on [OpenPCDet](https://github.com/open-mmlab/OpenPCDet) and [DSVT](https://github.com/Haiyang-W/DSVT).  
+We also thank the CenterPoint, TransFusion, OctFormer, Mamba, and HEDNet authors for their efforts. -->
+
+
+
