@@ -45,7 +45,7 @@ BEVDilation's result on nuScenes compared with other leading methods.
 All the experiments are evaluated on an NVIDIA A6000 GPU with the same environment.
 We hope that our BEVDilation can provide a potential LiDAR-centric solution for efficiently handling multi-modal fusion for 3D tasks.
 <div align="left">
-  <img src="docs/PVsS" width="500"/>
+  <img src="docs/PVsS.png" width="500"/>
 </div>
 
 ## 🚀Usage
