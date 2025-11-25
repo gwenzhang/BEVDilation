@@ -2,11 +2,10 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)]()
 
-This repo is the official implementation of AAAI26 paper [BEVDilation: LiDAR-Centric Multi-Modal Fusion for 3D Object Detection](). Our BEVDilation achieves state-of-the-art performance on nuScene datasets. It prioritizes Li-
-DAR information in the multi-modal fusion, achieving effective and robust fusion.
+This repo is the official implementation of AAAI26 paper [BEVDilation: LiDAR-Centric Multi-Modal Fusion for 3D Object Detection](). Our BEVDilation achieves state-of-the-art performance on nuScene datasets. It prioritizes LiDAR information in the multi-modal fusion, achieving effective and robust fusion.
 
 ## 🔥News
--[25-11-24] BEVDilation released on [arxiv](https://arxiv.org/abs/2406.10700)   
+<!-- -[25-11-24] BEVDilation released on [arxiv](https://arxiv.org/abs/2406.10700)    -->
 -[25-11-24] BEVDilation is accepted by **AAAI26**!
 
 ## 📘TODO
@@ -17,8 +16,8 @@ DAR information in the multi-modal fusion, achieving effective and robust fusion
 - [ ] Release code of ERFs visualization.
 - [ ] Merge Voxel Mamba to [OpenPCDet](https://github.com/open-mmlab/OpenPCDet). -->
 
-<!-- ## 🏆Main Results
-#### Waymo Open Dataset
+## 🏆Main Results
+<!-- #### Waymo Open Dataset
 Validation set  
 |  Model  | mAPH_L1 | mAPH_L2 | Veh_L1 | Veh_L2 | Ped_L1 | Ped_L2 | Cyc_L1 | Cyc_L2 | Log |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
@@ -27,26 +26,26 @@ Validation set
 Test set
 |  Model  | mAPH_L1 | mAPH_L2 | Veh_L1 | Veh_L2 | Ped_L1 | Ped_L2 | Cyc_L1 | Cyc_L2 | Leaderboard |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
-|  [Voxel Mamba](tools/cfgs/voxel_mamba_models/voxel_mamba_waymo.yaml) | 79.6  |  74.3  | 84.4/84.0 | 77.0/76.6 | 84.8/80.6 | 79.0/74.9 | 75.4/74.3 | 72.6/71.5 | [leaderboard](https://waymo.com/open/challenges/detection-3d/results/d57ccce9-36ad/1718951969931000/) | 
+|  [Voxel Mamba](tools/cfgs/voxel_mamba_models/voxel_mamba_waymo.yaml) | 79.6  |  74.3  | 84.4/84.0 | 77.0/76.6 | 84.8/80.6 | 79.0/74.9 | 75.4/74.3 | 72.6/71.5 | [leaderboard](https://waymo.com/open/challenges/detection-3d/results/d57ccce9-36ad/1718951969931000/) |  -->
 
 
 #### nuScene Dataset
 Validation set  
 |  Model  | mAP | NDS | mATE | mASE | mAOE | mAVE| mAAE | ckpt | Log |
 |---------|---------|--------|---------|---------|--------|---------|--------|--------|--------|
-|  [Voxel Mamba]() | 67.5 | 71.9 | 26.7 | 25.0 | 25.8 | 21.8 | 18.9| [ckpt]()| [Log]()|  
+|  [BEVDilation]() | 73.0 | 75.0 | 26.9 | 24.7 | 28.6 | 17.7 | 17.3 | [ckpt]()| [Log]()|  
 
 Test set  
 |  Model  | mAP | NDS | mATE | mASE | mAOE | mAVE| mAAE | Leaderboard | Submission |
 |---------|---------|--------|---------|---------|--------|---------|--------|--------|--------|
-|  [Voxel Mamba]() | 69.0 | 73.0 | 24.3 | 23.0 | 30.9 | 23.7 | 13.3| [leaderboard](https://www.nuscenes.org/object-detection?externalData=all&mapData=all&modalities=Lidar)| [Submission](https://drive.google.com/file/d/1k1F5H0sqvJGyKzDN2_bCHcY-o0gKCwmo/view?usp=sharing)|  
+|  [BEVDilation]() | 73.1.0 | 75.4 | 24.8 | 23.4 | 33.8 | 17.8 | 11.7| [leaderboard]()| [Submission]()|  
 
 
-Voxel Mamba's result on Waymo compared with other leading methods.
-All the experiments are evaluated on an NVIDIA A100 GPU with the same environment.
-We hope that our Voxel Mamba can provide a potential group-free solution for efficiently handling sparse point clouds for 3D tasks.
+BEVDilation's result on nuScenes compared with other leading methods.
+All the experiments are evaluated on an NVIDIA A6000 GPU with the same environment.
+We hope that our BEVDilation can provide a potential LiDAR-centric solution for efficiently handling multi-modal fusion for 3D tasks.
 <div align="left">
-  <img src="docs/Speed_Performance.png" width="500"/>
+  <img src="docs/PVsS" width="500"/>
 </div>
 
 ## 🚀Usage
@@ -54,9 +53,9 @@ We hope that our Voxel Mamba can provide a potential group-free solution for eff
 Please refer to [INSTALL.md](docs/INSTALL.md) for installation.
 
 ### Dataset Preparation
-Please follow the instructions from [OpenPCDet](https://github.com/open-mmlab/OpenPCDet/blob/master/docs/GETTING_STARTED.md). We adopt the same data generation process.
+Please follow the instructions from [DAL](https://github.com/HuangJunJie2017/BEVDet). We adopt the same data generation process.
 
-### Generate Hilbert Template
+<!-- ### Generate Hilbert Template
 ```
 cd data
 mkdir hilbert
@@ -87,11 +86,11 @@ Please consider citing our work as follows if it is helpful.
   journal={arXiv preprint arXiv:2406.10700},
   year={2024}
 }
-```
+``` -->
 
-## Acknowledgments
-Voxel Mamba is based on [OpenPCDet](https://github.com/open-mmlab/OpenPCDet) and [DSVT](https://github.com/Haiyang-W/DSVT).  
-We also thank the CenterPoint, TransFusion, OctFormer, Mamba, and HEDNet authors for their efforts. -->
+<!-- ## Acknowledgments
+Voxel Mamba is based on [DAL](https://github.com/HuangJunJie2017/BEVDet).  
+We also thank the CenterPoint, DAL, OpenPCDet, and MMDetection3D authors for their efforts. -->
 
 
 
