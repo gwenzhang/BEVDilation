@@ -93,13 +93,17 @@ def parse_args():
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
-    parser.add_argument('--local_rank', type=int, default=0)
+    # Support both --local-rank (from torch.distributed.launch) and --local_rank (from torchrun)
+    parser.add_argument('--local-rank', '--local_rank', type=int, default=0, dest='local_rank')
     parser.add_argument(
         '--autoscale-lr',
         action='store_true',
         help='automatically scale lr with the number of gpus')
     args = parser.parse_args()
-    if 'LOCAL_RANK' not in os.environ:
+    # Get LOCAL_RANK from environment variable first (torchrun sets this), then from args
+    if 'LOCAL_RANK' in os.environ:
+        args.local_rank = int(os.environ['LOCAL_RANK'])
+    else:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
 
     if args.options and args.cfg_options:

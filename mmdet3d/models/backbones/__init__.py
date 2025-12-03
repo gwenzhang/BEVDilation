@@ -10,11 +10,11 @@ from .pointnet2_sa_ssg import PointNet2SASSG
 from .resnet import CustomResNet, CustomResNet3D
 from .second import SECOND
 from .swin import SwinTransformer
-from .bev_backbone_ded import CascadeDEDBackbone, CascadeDEDBackboneV1
+from .bev_backbone_ded import Cascade_SBDB
 
 __all__ = [
     'ResNet', 'ResNetV1d', 'ResNeXt', 'SSDVGG', 'HRNet', 'NoStemRegNet',
     'SECOND', 'DGCNNBackbone', 'PointNet2SASSG', 'PointNet2SAMSG',
     'MultiBackbone', 'DLANet', 'MinkResNet', 'CustomResNet', 'CustomResNet3D',
-    'SwinTransformer', 'CascadeDEDBackbone', 'CascadeDEDBackboneV1'
+    'SwinTransformer', 'Cascade_SBDB'
 ]

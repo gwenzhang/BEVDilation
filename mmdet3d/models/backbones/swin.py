@@ -20,9 +20,11 @@ from ..builder import BACKBONES
 from mmcv.cnn.bricks.registry import ATTENTION
 from torch.nn.modules.utils import _pair as to_2tuple
 from collections import OrderedDict
+import math
+from typing import Sequence
 
+def swin_converter(ckpt):
 
-def swin_convert(ckpt):
     new_ckpt = OrderedDict()
 
     def correct_unfold_reduction_order(x):
@@ -71,68 +73,145 @@ def swin_convert(ckpt):
             new_v = v
             new_k = k
 
-        new_ckpt[new_k] = new_v
+        new_ckpt['backbone.' + new_k] = new_v
 
     return new_ckpt
 
+class AdaptivePadding(nn.Module):
+    """Applies padding to input (if needed) so that input can get fully covered
+    by filter you specified. It support two modes "same" and "corner". The
+    "same" mode is same with "SAME" padding mode in TensorFlow, pad zero around
+    input. The "corner"  mode would pad zero to bottom right.
+    Args:
+        kernel_size (int | tuple): Size of the kernel:
+        stride (int | tuple): Stride of the filter. Default: 1:
+        dilation (int | tuple): Spacing between kernel elements.
+            Default: 1
+        padding (str): Support "same" and "corner", "corner" mode
+            would pad zero to bottom right, and "same" mode would
+            pad zero around input. Default: "corner".
+    Example:
+        >>> kernel_size = 16
+        >>> stride = 16
+        >>> dilation = 1
+        >>> input = torch.rand(1, 1, 15, 17)
+        >>> adap_pad = AdaptivePadding(
+        >>>     kernel_size=kernel_size,
+        >>>     stride=stride,
+        >>>     dilation=dilation,
+        >>>     padding="corner")
+        >>> out = adap_pad(input)
+        >>> assert (out.shape[2], out.shape[3]) == (16, 32)
+        >>> input = torch.rand(1, 1, 16, 17)
+        >>> out = adap_pad(input)
+        >>> assert (out.shape[2], out.shape[3]) == (16, 32)
+    """
+
+    def __init__(self, kernel_size=1, stride=1, dilation=1, padding='corner'):
+
+        super(AdaptivePadding, self).__init__()
+
+        assert padding in ('same', 'corner')
+
+        kernel_size = to_2tuple(kernel_size)
+        stride = to_2tuple(stride)
+        padding = to_2tuple(padding)
+        dilation = to_2tuple(dilation)
+
+        self.padding = padding
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.dilation = dilation
+
+    def get_pad_shape(self, input_shape):
+        input_h, input_w = input_shape
+        kernel_h, kernel_w = self.kernel_size
+        stride_h, stride_w = self.stride
+        output_h = math.ceil(input_h / stride_h)
+        output_w = math.ceil(input_w / stride_w)
+        pad_h = max((output_h - 1) * stride_h +
+                    (kernel_h - 1) * self.dilation[0] + 1 - input_h, 0)
+        pad_w = max((output_w - 1) * stride_w +
+                    (kernel_w - 1) * self.dilation[1] + 1 - input_w, 0)
+        return pad_h, pad_w
+
+    def forward(self, x):
+        pad_h, pad_w = self.get_pad_shape(x.size()[-2:])
+        if pad_h > 0 or pad_w > 0:
+            if self.padding == 'corner':
+                x = F.pad(x, [0, pad_w, 0, pad_h])
+            elif self.padding == 'same':
+                x = F.pad(x, [
+                    pad_w // 2, pad_w - pad_w // 2, pad_h // 2,
+                    pad_h - pad_h // 2
+                ])
+        return x
+
 # Modified from Pytorch-Image-Models
 class PatchEmbed(BaseModule):
-    """Image to Patch Embedding V2.
+    """Image to Patch Embedding.
 
     We use a conv layer to implement PatchEmbed.
+
     Args:
         in_channels (int): The num of input channels. Default: 3
         embed_dims (int): The dimensions of embedding. Default: 768
-        conv_type (dict, optional): The config dict for conv layers type
-            selection. Default: None.
+        conv_type (str): The config dict for embedding
+            conv layer type selection. Default: "Conv2d.
         kernel_size (int): The kernel_size of embedding conv. Default: 16.
         stride (int): The slide stride of embedding conv.
-            Default: None (Default to be equal with kernel_size).
-        padding (int): The padding length of embedding conv. Default: 0.
+            Default: None (Would be set as `kernel_size`).
+        padding (int | tuple | string ): The padding length of
+            embedding conv. When it is a string, it means the mode
+            of adaptive padding, support "same" and "corner" now.
+            Default: "corner".
         dilation (int): The dilation rate of embedding conv. Default: 1.
-        pad_to_patch_size (bool, optional): Whether to pad feature map shape
-            to multiple patch size. Default: True.
+        bias (bool): Bias of embed conv. Default: True.
         norm_cfg (dict, optional): Config dict for normalization layer.
+            Default: None.
+        input_size (int | tuple | None): The size of input, which will be
+            used to calculate the out size. Only work when `dynamic_size`
+            is False. Default: None.
         init_cfg (`mmcv.ConfigDict`, optional): The Config for initialization.
             Default: None.
     """
 
-    def __init__(self,
-                 in_channels=3,
-                 embed_dims=768,
-                 conv_type=None,
-                 kernel_size=16,
-                 stride=16,
-                 padding=0,
-                 dilation=1,
-                 pad_to_patch_size=True,
-                 norm_cfg=None,
-                 init_cfg=None):
-        super(PatchEmbed, self).__init__()
+    def __init__(
+        self,
+        in_channels=3,
+        embed_dims=768,
+        conv_type='Conv2d',
+        kernel_size=16,
+        stride=16,
+        padding='corner',
+        dilation=1,
+        bias=True,
+        norm_cfg=None,
+        input_size=None,
+        init_cfg=None,
+    ):
+        super(PatchEmbed, self).__init__(init_cfg=init_cfg)
 
         self.embed_dims = embed_dims
-        self.init_cfg = init_cfg
-
         if stride is None:
             stride = kernel_size
 
-        self.pad_to_patch_size = pad_to_patch_size
+        kernel_size = to_2tuple(kernel_size)
+        stride = to_2tuple(stride)
+        dilation = to_2tuple(dilation)
 
-        # The default setting of patch size is equal to kernel size.
-        patch_size = kernel_size
-        if isinstance(patch_size, int):
-            patch_size = to_2tuple(patch_size)
-        elif isinstance(patch_size, tuple):
-            if len(patch_size) == 1:
-                patch_size = to_2tuple(patch_size[0])
-            assert len(patch_size) == 2, \
-                f'The size of patch should have length 1 or 2, ' \
-                f'but got {len(patch_size)}'
+        if isinstance(padding, str):
+            self.adap_padding = AdaptivePadding(
+                kernel_size=kernel_size,
+                stride=stride,
+                dilation=dilation,
+                padding=padding)
+            # disable the padding of conv
+            padding = 0
+        else:
+            self.adap_padding = None
+        padding = to_2tuple(padding)
 
-        self.patch_size = patch_size
-
-        # Use conv layer to embed
-        conv_type = conv_type or 'Conv2d'
         self.projection = build_conv_layer(
             dict(type=conv_type),
             in_channels=in_channels,
@@ -140,71 +219,132 @@ class PatchEmbed(BaseModule):
             kernel_size=kernel_size,
             stride=stride,
             padding=padding,
-            dilation=dilation)
+            dilation=dilation,
+            bias=bias)
 
         if norm_cfg is not None:
             self.norm = build_norm_layer(norm_cfg, embed_dims)[1]
         else:
             self.norm = None
 
-    def forward(self, x):
-        H, W = x.shape[2], x.shape[3]
+        if input_size:
+            input_size = to_2tuple(input_size)
+            # `init_out_size` would be used outside to
+            # calculate the num_patches
+            # when `use_abs_pos_embed` outside
+            self.init_input_size = input_size
+            if self.adap_padding:
+                pad_h, pad_w = self.adap_padding.get_pad_shape(input_size)
+                input_h, input_w = input_size
+                input_h = input_h + pad_h
+                input_w = input_w + pad_w
+                input_size = (input_h, input_w)
 
-        # TODO: Process overlapping op
-        if self.pad_to_patch_size:
-            # Modify H, W to multiple of patch size.
-            if H % self.patch_size[0] != 0:
-                x = F.pad(
-                    x, (0, 0, 0, self.patch_size[0] - H % self.patch_size[0]))
-            if W % self.patch_size[1] != 0:
-                x = F.pad(
-                    x, (0, self.patch_size[1] - W % self.patch_size[1], 0, 0))
+            # https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
+            h_out = (input_size[0] + 2 * padding[0] - dilation[0] *
+                     (kernel_size[0] - 1) - 1) // stride[0] + 1
+            w_out = (input_size[1] + 2 * padding[1] - dilation[1] *
+                     (kernel_size[1] - 1) - 1) // stride[1] + 1
+            self.init_out_size = (h_out, w_out)
+        else:
+            self.init_input_size = None
+            self.init_out_size = None
+
+    def forward(self, x):
+        """
+        Args:
+            x (Tensor): Has shape (B, C, H, W). In most case, C is 3.
+
+        Returns:
+            tuple: Contains merged results and its spatial shape.
+
+                - x (Tensor): Has shape (B, out_h * out_w, embed_dims)
+                - out_size (tuple[int]): Spatial shape of x, arrange as
+                    (out_h, out_w).
+        """
+
+        if self.adap_padding:
+            x = self.adap_padding(x)
 
         x = self.projection(x)
-        self.DH, self.DW = x.shape[2], x.shape[3]
+        out_size = (x.shape[2], x.shape[3])
         x = x.flatten(2).transpose(1, 2)
-
         if self.norm is not None:
             x = self.norm(x)
-
-        return x
+        return x, out_size
 
 
 
 class PatchMerging(BaseModule):
     """Merge patch feature map.
-
-    This layer use nn.Unfold to group feature map by kernel_size, and use norm
-    and linear layer to embed grouped feature map.
+    This layer groups feature map by kernel_size, and applies norm and linear
+    layers to the grouped feature map. Our implementation uses `nn.Unfold` to
+    merge patch, which is about 25% faster than original implementation.
+    Instead, we need to modify pretrained models for compatibility.
     Args:
         in_channels (int): The num of input channels.
+            to gets fully covered by filter and stride you specified..
+            Default: True.
         out_channels (int): The num of output channels.
-        stride (int | tuple): the stride of the sliding length in the
-            unfold layer. Defaults: 2. (Default to be equal with kernel_size).
+        kernel_size (int | tuple, optional): the kernel size in the unfold
+            layer. Defaults to 2.
+        stride (int | tuple, optional): the stride of the sliding blocks in the
+            unfold layer. Default: None. (Would be set as `kernel_size`)
+        padding (int | tuple | string ): The padding length of
+            embedding conv. When it is a string, it means the mode
+            of adaptive padding, support "same" and "corner" now.
+            Default: "corner".
+        dilation (int | tuple, optional): dilation parameter in the unfold
+            layer. Default: 1.
         bias (bool, optional): Whether to add bias in linear layer or not.
             Defaults: False.
         norm_cfg (dict, optional): Config dict for normalization layer.
-            Defaults: dict(type='LN').
+            Default: dict(type='LN').
         init_cfg (dict, optional): The extra config for initialization.
-            Defaults: None.
+            Default: None.
     """
 
     def __init__(self,
                  in_channels,
                  out_channels,
-                 stride=2,
+                 kernel_size=2,
+                 stride=None,
+                 padding='corner',
+                 dilation=1,
                  bias=False,
                  norm_cfg=dict(type='LN'),
                  init_cfg=None):
-        super().__init__(init_cfg)
+        super().__init__(init_cfg=init_cfg)
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.stride = stride
+        if stride:
+            stride = stride
+        else:
+            stride = kernel_size
 
+        kernel_size = to_2tuple(kernel_size)
+        stride = to_2tuple(stride)
+        dilation = to_2tuple(dilation)
+
+        if isinstance(padding, str):
+            self.adap_padding = AdaptivePadding(
+                kernel_size=kernel_size,
+                stride=stride,
+                dilation=dilation,
+                padding=padding)
+            # disable the padding of unfold
+            padding = 0
+        else:
+            self.adap_padding = None
+
+        padding = to_2tuple(padding)
         self.sampler = nn.Unfold(
-            kernel_size=stride, dilation=1, padding=0, stride=stride)
+            kernel_size=kernel_size,
+            dilation=dilation,
+            padding=padding,
+            stride=stride)
 
-        sample_dim = stride**2 * in_channels
+        sample_dim = kernel_size[0] * kernel_size[1] * in_channels
 
         if norm_cfg is not None:
             self.norm = build_norm_layer(norm_cfg, sample_dim)[1]
@@ -213,49 +353,66 @@ class PatchMerging(BaseModule):
 
         self.reduction = nn.Linear(sample_dim, out_channels, bias=bias)
 
-    def forward(self, x, hw_shape):
+    def forward(self, x, input_size):
         """
-        x: x.shape -> [B, H*W, C]
-        hw_shape: (H, W)
+        Args:
+            x (Tensor): Has shape (B, H*W, C_in).
+            input_size (tuple[int]): The spatial shape of x, arrange as (H, W).
+                Default: None.
+        Returns:
+            tuple: Contains merged results and its spatial shape.
+                - x (Tensor): Has shape (B, Merged_H * Merged_W, C_out)
+                - out_size (tuple[int]): Spatial shape of x, arrange as
+                    (Merged_H, Merged_W).
         """
         B, L, C = x.shape
-        H, W = hw_shape
+        assert isinstance(input_size, Sequence), f'Expect ' \
+                                                 f'input_size is ' \
+                                                 f'`Sequence` ' \
+                                                 f'but get {input_size}'
+
+        H, W = input_size
         assert L == H * W, 'input feature has wrong size'
 
         x = x.view(B, H, W, C).permute([0, 3, 1, 2])  # B, C, H, W
-
-        # stride is fixed to be equal to kernel_size.
-        if (H % self.stride != 0) or (W % self.stride != 0):
-            x = F.pad(x, (0, W % self.stride, 0, H % self.stride))
-
         # Use nn.Unfold to merge patch. About 25% faster than original method,
         # but need to modify pretrained model for compatibility
-        x = self.sampler(x)  # B, 4*C, H/2*W/2
-        x = x.transpose(1, 2)  # B, H/2*W/2, 4*C
 
+        if self.adap_padding:
+            x = self.adap_padding(x)
+            H, W = x.shape[-2:]
+
+        x = self.sampler(x)
+        # if kernel_size=2 and stride=2, x should has shape (B, 4*C, H/2*W/2)
+
+        out_h = (H + 2 * self.sampler.padding[0] - self.sampler.dilation[0] *
+                 (self.sampler.kernel_size[0] - 1) -
+                 1) // self.sampler.stride[0] + 1
+        out_w = (W + 2 * self.sampler.padding[1] - self.sampler.dilation[1] *
+                 (self.sampler.kernel_size[1] - 1) -
+                 1) // self.sampler.stride[1] + 1
+
+        output_size = (out_h, out_w)
+        x = x.transpose(1, 2)  # B, H/2*W/2, 4*C
         x = self.norm(x) if self.norm else x
         x = self.reduction(x)
-
-        down_hw_shape = (H + 1) // 2, (W + 1) // 2
-        return x, down_hw_shape
+        return x, output_size
 
 
-@ATTENTION.register_module()
 class WindowMSA(BaseModule):
     """Window based multi-head self-attention (W-MSA) module with relative
     position bias.
-
     Args:
         embed_dims (int): Number of input channels.
-        window_size (tuple[int]): The height and width of the window.
         num_heads (int): Number of attention heads.
+        window_size (tuple[int]): The height and width of the window.
         qkv_bias (bool, optional):  If True, add a learnable bias to q, k, v.
             Default: True.
         qk_scale (float | None, optional): Override default qk scale of
             head_dim ** -0.5 if set. Default: None.
         attn_drop_rate (float, optional): Dropout ratio of attention weight.
             Default: 0.0
-        proj_drop_rate (float, optional): Dropout ratio of output. Default: 0.0
+        proj_drop_rate (float, optional): Dropout ratio of output. Default: 0.
         init_cfg (dict | None, optional): The Config for initialization.
             Default: None.
     """
@@ -303,7 +460,6 @@ class WindowMSA(BaseModule):
     def forward(self, x, mask=None):
         """
         Args:
-
             x (tensor): input features with shape of (num_windows*B, N, C)
             mask (tensor | None, Optional): mask with shape of (num_windows,
                 Wh*Ww, Wh*Ww), value should be between (-inf, 0].
@@ -311,8 +467,8 @@ class WindowMSA(BaseModule):
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads,
                                   C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[
-            2]  # make torchscript happy (cannot use tensor as tuple)
+        # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
@@ -331,9 +487,7 @@ class WindowMSA(BaseModule):
             attn = attn.view(B // nW, nW, self.num_heads, N,
                              N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
-            attn = self.softmax(attn)
-        else:
-            attn = self.softmax(attn)
+        attn = self.softmax(attn)
 
         attn = self.attn_drop(attn)
 
@@ -349,9 +503,8 @@ class WindowMSA(BaseModule):
         return (seq1[:, None] + seq2[None, :]).reshape(1, -1)
 
 
-@ATTENTION.register_module()
 class ShiftWindowMSA(BaseModule):
-    """Shift Window Multihead Self-Attention Module.
+    """Shifted Window Multihead Self-Attention Module.
 
     Args:
         embed_dims (int): Number of input channels.
@@ -422,8 +575,7 @@ class ShiftWindowMSA(BaseModule):
                 dims=(1, 2))
 
             # calculate attention mask for SW-MSA
-            img_mask = torch.zeros((1, H_pad, W_pad, 1),
-                                   device=query.device)  # 1 H W 1
+            img_mask = torch.zeros((1, H_pad, W_pad, 1), device=query.device)
             h_slices = (slice(0, -self.window_size),
                         slice(-self.window_size,
                               -self.shift_size), slice(-self.shift_size, None))
@@ -483,7 +635,6 @@ class ShiftWindowMSA(BaseModule):
         """
         Args:
             windows: (num_windows*B, window_size, window_size, C)
-            window_size (int): Window size
             H (int): Height of image
             W (int): Width of image
         Returns:
@@ -500,7 +651,6 @@ class ShiftWindowMSA(BaseModule):
         """
         Args:
             x: (B, H, W, C)
-            window_size (int): window size
         Returns:
             windows: (num_windows*B, window_size, window_size, C)
         """
@@ -519,18 +669,21 @@ class SwinBlock(BaseModule):
         embed_dims (int): The feature dimension.
         num_heads (int): Parallel attention heads.
         feedforward_channels (int): The hidden dimension for FFNs.
-        window size (int, optional): The local window scale. Default: 7.
-        shift (bool): whether to shift window or not. Default False.
-        qkv_bias (int, optional): enable bias for qkv if True. Default: True.
+        window_size (int, optional): The local window scale. Default: 7.
+        shift (bool, optional): whether to shift window or not. Default False.
+        qkv_bias (bool, optional): enable bias for qkv if True. Default: True.
         qk_scale (float | None, optional): Override default qk scale of
             head_dim ** -0.5 if set. Default: None.
         drop_rate (float, optional): Dropout rate. Default: 0.
         attn_drop_rate (float, optional): Attention dropout rate. Default: 0.
-        drop_path_rate (float, optional): Stochastic depth rate. Default: 0.2.
+        drop_path_rate (float, optional): Stochastic depth rate. Default: 0.
         act_cfg (dict, optional): The config dict of activation function.
             Default: dict(type='GELU').
-        norm_cfg (dict, optional): The config dict of nomalization.
+        norm_cfg (dict, optional): The config dict of normalization.
             Default: dict(type='LN').
+        with_cp (bool, optional): Use checkpoint or not. Using checkpoint
+            will save some memory while slowing down the training speed.
+            Default: False.
         init_cfg (dict | list | None, optional): The init config.
             Default: None.
     """
@@ -548,11 +701,13 @@ class SwinBlock(BaseModule):
                  drop_path_rate=0.,
                  act_cfg=dict(type='GELU'),
                  norm_cfg=dict(type='LN'),
+                 with_cp=False,
                  init_cfg=None):
 
         super(SwinBlock, self).__init__()
 
         self.init_cfg = init_cfg
+        self.with_cp = with_cp
 
         self.norm1 = build_norm_layer(norm_cfg, embed_dims)[1]
         self.attn = ShiftWindowMSA(
@@ -579,15 +734,24 @@ class SwinBlock(BaseModule):
             init_cfg=None)
 
     def forward(self, x, hw_shape):
-        identity = x
-        x = self.norm1(x)
-        x = self.attn(x, hw_shape)
 
-        x = x + identity
+        def _inner_forward(x):
+            identity = x
+            x = self.norm1(x)
+            x = self.attn(x, hw_shape)
 
-        identity = x
-        x = self.norm2(x)
-        x = self.ffn(x, identity=identity)
+            x = x + identity
+
+            identity = x
+            x = self.norm2(x)
+            x = self.ffn(x, identity=identity)
+
+            return x
+
+        if self.with_cp and x.requires_grad:
+            x = cp.checkpoint(_inner_forward, x)
+        else:
+            x = _inner_forward(x)
 
         return x
 
@@ -600,19 +764,23 @@ class SwinBlockSequence(BaseModule):
         num_heads (int): Parallel attention heads.
         feedforward_channels (int): The hidden dimension for FFNs.
         depth (int): The number of blocks in this stage.
-        window size (int): The local window scale. Default: 7.
-        qkv_bias (int): enable bias for qkv if True. Default: True.
+        window_size (int, optional): The local window scale. Default: 7.
+        qkv_bias (bool, optional): enable bias for qkv if True. Default: True.
         qk_scale (float | None, optional): Override default qk scale of
             head_dim ** -0.5 if set. Default: None.
         drop_rate (float, optional): Dropout rate. Default: 0.
         attn_drop_rate (float, optional): Attention dropout rate. Default: 0.
-        drop_path_rate (float, optional): Stochastic depth rate. Default: 0.2.
+        drop_path_rate (float | list[float], optional): Stochastic depth
+            rate. Default: 0.
         downsample (BaseModule | None, optional): The downsample operation
             module. Default: None.
         act_cfg (dict, optional): The config dict of activation function.
             Default: dict(type='GELU').
-        norm_cfg (dict, optional): The config dict of nomalization.
+        norm_cfg (dict, optional): The config dict of normalization.
             Default: dict(type='LN').
+        with_cp (bool, optional): Use checkpoint or not. Using checkpoint
+            will save some memory while slowing down the training speed.
+            Default: False.
         init_cfg (dict | list | None, optional): The init config.
             Default: None.
     """
@@ -631,15 +799,15 @@ class SwinBlockSequence(BaseModule):
                  downsample=None,
                  act_cfg=dict(type='GELU'),
                  norm_cfg=dict(type='LN'),
-                 init_cfg=None,
-                 with_cp=True):
-        super().__init__()
+                 with_cp=False,
+                 init_cfg=None):
+        super().__init__(init_cfg=init_cfg)
 
-        self.init_cfg = init_cfg
-
-        drop_path_rate = drop_path_rate if isinstance(
-            drop_path_rate,
-            list) else [deepcopy(drop_path_rate) for _ in range(depth)]
+        if isinstance(drop_path_rate, list):
+            drop_path_rates = drop_path_rate
+            assert len(drop_path_rates) == depth
+        else:
+            drop_path_rates = [deepcopy(drop_path_rate) for _ in range(depth)]
 
         self.blocks = ModuleList()
         for i in range(depth):
@@ -653,21 +821,18 @@ class SwinBlockSequence(BaseModule):
                 qk_scale=qk_scale,
                 drop_rate=drop_rate,
                 attn_drop_rate=attn_drop_rate,
-                drop_path_rate=drop_path_rate[i],
+                drop_path_rate=drop_path_rates[i],
                 act_cfg=act_cfg,
                 norm_cfg=norm_cfg,
+                with_cp=with_cp,
                 init_cfg=None)
             self.blocks.append(block)
 
         self.downsample = downsample
-        self.with_cp = with_cp
 
     def forward(self, x, hw_shape):
         for block in self.blocks:
-            if self.with_cp:
-                x = checkpoint.checkpoint(block, x, hw_shape)
-            else:
-                x = block(x, hw_shape)
+            x = block(x, hw_shape)
 
         if self.downsample:
             x_down, down_hw_shape = self.downsample(x, hw_shape)
@@ -676,7 +841,6 @@ class SwinBlockSequence(BaseModule):
             return x, hw_shape, x, hw_shape
 
 
-@BACKBONES.register_module()
 class SwinTransformer(BaseModule):
     """ Swin Transformer
     A PyTorch implement of : `Swin Transformer:
@@ -694,7 +858,7 @@ class SwinTransformer(BaseModule):
         embed_dims (int): The feature dimension. Default: 96.
         patch_size (int | tuple[int]): Patch size. Default: 4.
         window_size (int): Window size. Default: 7.
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
+        mlp_ratio (int): Ratio of mlp hidden dim to embedding dim.
             Default: 4.
         depths (tuple[int]): Depths of each Swin Transformer stage.
             Default: (2, 2, 6, 2).
@@ -720,9 +884,16 @@ class SwinTransformer(BaseModule):
             Default: dict(type='LN').
         norm_cfg (dict): Config dict for normalization layer at
             output of backone. Defaults: dict(type='LN').
-        pretrain_style (str): Choose to use official or mmcls pretrain weights.
-            Default: official.
+        with_cp (bool, optional): Use checkpoint or not. Using checkpoint
+            will save some memory while slowing down the training speed.
+            Default: False.
         pretrained (str, optional): model pretrained path. Default: None.
+        convert_weights (bool): The flag indicates whether the
+            pre-trained model is from the original repo. We may need
+            to convert some keys to make it compatible.
+            Default: False.
+        frozen_stages (int): Stages to be frozen (stop grad and set eval mode).
+            -1 means not freezing any parameters.
         init_cfg (dict, optional): The Config for initialization.
             Defaults to None.
     """
@@ -747,15 +918,13 @@ class SwinTransformer(BaseModule):
                  use_abs_pos_embed=False,
                  act_cfg=dict(type='GELU'),
                  norm_cfg=dict(type='LN'),
-                 pretrain_style='official',
+                 with_cp=False,
                  pretrained=None,
-                 init_cfg=None,
-                 with_cp=True,
-                 return_stereo_feat=False,
-                 output_missing_index_as_none=False,
-                 frozen_stages=-1):
-        super(SwinTransformer, self).__init__()
-
+                 convert_weights=False,
+                 frozen_stages=-1,
+                 init_cfg=None):
+        self.convert_weights = convert_weights
+        self.frozen_stages = frozen_stages
         if isinstance(pretrain_img_size, int):
             pretrain_img_size = to_2tuple(pretrain_img_size)
         elif isinstance(pretrain_img_size, tuple):
@@ -765,23 +934,22 @@ class SwinTransformer(BaseModule):
                 f'The size of image should have length 1 or 2, ' \
                 f'but got {len(pretrain_img_size)}'
 
-        assert pretrain_style in ['official', 'mmcls'], 'We only support load '
-        'official ckpt and mmcls ckpt.'
-
-        if isinstance(pretrained, str) or pretrained is None:
-            warnings.warn('DeprecationWarning: pretrained is a deprecated, '
+        assert not (init_cfg and pretrained), \
+            'init_cfg and pretrained cannot be specified at the same time'
+        if isinstance(pretrained, str):
+            warnings.warn('DeprecationWarning: pretrained is deprecated, '
                           'please use "init_cfg" instead')
+            self.init_cfg = dict(type='Pretrained', checkpoint=pretrained)
+        elif pretrained is None:
+            self.init_cfg = init_cfg
         else:
             raise TypeError('pretrained must be a str or None')
+
+        super(SwinTransformer, self).__init__(init_cfg=init_cfg)
 
         num_layers = len(depths)
         self.out_indices = out_indices
         self.use_abs_pos_embed = use_abs_pos_embed
-        self.pretrain_style = pretrain_style
-        self.pretrained = pretrained
-        self.init_cfg = init_cfg
-
-        self.frozen_stages = frozen_stages
 
         assert strides[0] == patch_size, 'Use non-overlapping patch embed.'
 
@@ -791,7 +959,6 @@ class SwinTransformer(BaseModule):
             conv_type='Conv2d',
             kernel_size=patch_size,
             stride=strides[0],
-            pad_to_patch_size=True,
             norm_cfg=norm_cfg if patch_norm else None,
             init_cfg=None)
 
@@ -804,11 +971,11 @@ class SwinTransformer(BaseModule):
 
         self.drop_after_pos = nn.Dropout(p=drop_rate)
 
-        # stochastic depth
+        # set stochastic depth decay rule
         total_depth = sum(depths)
         dpr = [
             x.item() for x in torch.linspace(0, drop_path_rate, total_depth)
-        ]  # stochastic depth decay rule
+        ]
 
         self.stages = ModuleList()
         in_channels = embed_dims
@@ -833,15 +1000,13 @@ class SwinTransformer(BaseModule):
                 qk_scale=qk_scale,
                 drop_rate=drop_rate,
                 attn_drop_rate=attn_drop_rate,
-                drop_path_rate=dpr[:depths[i]],
+                drop_path_rate=dpr[sum(depths[:i]):sum(depths[:i + 1])],
                 downsample=downsample,
                 act_cfg=act_cfg,
                 norm_cfg=norm_cfg,
-                init_cfg=None,
-                with_cp=with_cp)
+                with_cp=with_cp,
+                init_cfg=None)
             self.stages.append(stage)
-
-            dpr = dpr[depths[i]:]
             if downsample:
                 in_channels = downsample.out_channels
 
@@ -851,60 +1016,76 @@ class SwinTransformer(BaseModule):
             layer = build_norm_layer(norm_cfg, self.num_features[i])[1]
             layer_name = f'norm{i}'
             self.add_module(layer_name, layer)
-        self.output_missing_index_as_none = output_missing_index_as_none
 
+    def train(self, mode=True):
+        """Convert the model into training mode while keep layers freezed."""
+        super(SwinTransformer, self).train(mode)
         self._freeze_stages()
-        self.return_stereo_feat = return_stereo_feat
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
             self.patch_embed.eval()
             for param in self.patch_embed.parameters():
                 param.requires_grad = False
-
-        if self.frozen_stages >= 1 and self.use_abs_pos_embed:
-            self.absolute_pos_embed.requires_grad = False
-
-        if self.frozen_stages >= 2:
+            if self.use_abs_pos_embed:
+                self.absolute_pos_embed.requires_grad = False
             self.drop_after_pos.eval()
-            for i in range(0, self.frozen_stages - 1):
-                m = self.stages[i]
-                m.eval()
-                for param in m.parameters():
+
+        for i in range(1, self.frozen_stages + 1):
+
+            if (i - 1) in self.out_indices:
+                norm_layer = getattr(self, f'norm{i-1}')
+                norm_layer.eval()
+                for param in norm_layer.parameters():
                     param.requires_grad = False
 
+            m = self.stages[i - 1]
+            m.eval()
+            for param in m.parameters():
+                param.requires_grad = False
+
     def init_weights(self):
-        if self.pretrained is None:
-            super().init_weights()
+        logger = get_root_logger()
+        if self.init_cfg is None:
+            logger.warn(f'No pre-trained weights for '
+                        f'{self.__class__.__name__}, '
+                        f'training start from scratch')
             if self.use_abs_pos_embed:
                 trunc_normal_init(self.absolute_pos_embed, std=0.02)
             for m in self.modules():
-                if isinstance(m, Linear):
+                if isinstance(m, nn.Linear):
                     trunc_normal_init(m.weight, std=.02)
                     if m.bias is not None:
                         constant_init(m.bias, 0)
-                elif isinstance(m, LayerNorm):
+                elif isinstance(m, nn.LayerNorm):
                     constant_init(m.bias, 0)
                     constant_init(m.weight, 1.0)
-        elif isinstance(self.pretrained, str):
-            logger = get_root_logger()
+        else:
+            assert 'checkpoint' in self.init_cfg, f'Only support ' \
+                                                  f'specify `Pretrained` in ' \
+                                                  f'`init_cfg` in ' \
+                                                  f'{self.__class__.__name__} '
             ckpt = _load_checkpoint(
-                self.pretrained, logger=logger, map_location='cpu')
+                self.init_cfg.checkpoint, logger=logger, map_location='cpu')
             if 'state_dict' in ckpt:
-                state_dict = ckpt['state_dict']
+                _state_dict = ckpt['state_dict']
             elif 'model' in ckpt:
-                state_dict = ckpt['model']
+                _state_dict = ckpt['model']
             else:
-                state_dict = ckpt
+                _state_dict = ckpt
+            if self.convert_weights:
+                # supported loading weight from original repo,
+                _state_dict = swin_converter(_state_dict)
 
-            if self.pretrain_style == 'official':
-                state_dict = swin_convert(state_dict)
+            state_dict = OrderedDict()
+            for k, v in _state_dict.items():
+                if k.startswith('backbone.'):
+                    state_dict[k[9:]] = v
 
             # strip prefix of state_dict
             if list(state_dict.keys())[0].startswith('module.'):
                 state_dict = {k[7:]: v for k, v in state_dict.items()}
-            # if list(state_dict.keys())[0].startswith('backbone.'):
-            #     state_dict = {k[9:]: v for k, v in state_dict.items()}
+
             # reshape absolute position embedding
             if state_dict.get('absolute_pos_embed') is not None:
                 absolute_pos_embed = state_dict['absolute_pos_embed']
@@ -928,25 +1109,22 @@ class SwinTransformer(BaseModule):
                 L2, nH2 = table_current.size()
                 if nH1 != nH2:
                     logger.warning(f'Error in loading {table_key}, pass')
-                else:
-                    if L1 != L2:
-                        S1 = int(L1**0.5)
-                        S2 = int(L2**0.5)
-                        table_pretrained_resized = resize(
-                            table_pretrained.permute(1, 0).reshape(
-                                1, nH1, S1, S1),
-                            size=(S2, S2),
-                            mode='bicubic')
-                        state_dict[table_key] = table_pretrained_resized.view(
-                            nH2, L2).permute(1, 0).contiguous()
+                elif L1 != L2:
+                    S1 = int(L1**0.5)
+                    S2 = int(L2**0.5)
+                    table_pretrained_resized = F.interpolate(
+                        table_pretrained.permute(1, 0).reshape(1, nH1, S1, S1),
+                        size=(S2, S2),
+                        mode='bicubic')
+                    state_dict[table_key] = table_pretrained_resized.view(
+                        nH2, L2).permute(1, 0).contiguous()
 
             # load state_dict
             self.load_state_dict(state_dict, False)
 
     def forward(self, x):
-        x = self.patch_embed(x)
+        x, hw_shape = self.patch_embed(x)
 
-        hw_shape = (self.patch_embed.DH, self.patch_embed.DW)
         if self.use_abs_pos_embed:
             x = x + self.absolute_pos_embed
         x = self.drop_after_pos(x)
@@ -954,11 +1132,6 @@ class SwinTransformer(BaseModule):
         outs = []
         for i, stage in enumerate(self.stages):
             x, hw_shape, out, out_hw_shape = stage(x, hw_shape)
-            if i == 0 and self.return_stereo_feat:
-                out = out.view(-1, *out_hw_shape,
-                               self.num_features[i]).permute(0, 3, 1,
-                                                             2).contiguous()
-                outs.append(out)
             if i in self.out_indices:
                 norm_layer = getattr(self, f'norm{i}')
                 out = norm_layer(out)
@@ -966,12 +1139,5 @@ class SwinTransformer(BaseModule):
                                self.num_features[i]).permute(0, 3, 1,
                                                              2).contiguous()
                 outs.append(out)
-            elif self.output_missing_index_as_none:
-                outs.append(None)
-        return outs
 
-    def train(self, mode=True):
-        """Convert the model into training mode while keep normalization layer
-        freezed."""
-        super(SwinTransformer, self).train(mode)
-        self._freeze_stages()
+        return outs

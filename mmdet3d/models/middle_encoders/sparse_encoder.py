@@ -122,7 +122,13 @@ class SparseEncoder(nn.Module):
         # self.mamba_autoRegression = Mamba_Auto_Regression(encoder_out_channels, ssm_cfg=None, norm_epsilon=0.00001, 
         #                                                   rms_norm=True, template_path=curve_template_path)
         
-        self.voxel_generation = Voxel_Generation(img_channels=vx_config.img_channels, lidar_channels=vx_config.lidar_channels,
+        # self.voxel_generation = Voxel_Generation(img_channels=vx_config.img_channels, lidar_channels=vx_config.lidar_channels,
+        #                                         curve_template_path=vx_config.curve_template_path, curve_rank=vx_config.curve_rank,
+        #                                         img_encoder_num=vx_config.img_encoder_num, fg_thr=vx_config.fg_thr,
+        #                                         img_downstrides=vx_config.img_downstrides, bev_shape=vx_config.bev_shape,
+        #                                         voxel_size=vx_config.voxel_size, pc_range=vx_config.pc_range, downstride=vx_config.downstride)
+        # Sparse Voxel Dilation Block
+        self.SVDB = Voxel_Generation(img_channels=vx_config.img_channels, lidar_channels=vx_config.lidar_channels,
                                                 curve_template_path=vx_config.curve_template_path, curve_rank=vx_config.curve_rank,
                                                 img_encoder_num=vx_config.img_encoder_num, fg_thr=vx_config.fg_thr,
                                                 img_downstrides=vx_config.img_downstrides, bev_shape=vx_config.bev_shape,
@@ -161,7 +167,8 @@ class SparseEncoder(nn.Module):
         out = self.conv_out_to_bev(out)
         batch = out.indices[:, 0].max().item() + 1
         # out = self.mamba_autoRegression(out, batch)
-        out, pred_bev_mask = self.voxel_generation(out, img_feats, batch, img_input_list)
+        # out, pred_bev_mask = self.voxel_generation(out, img_feats, batch, img_input_list)
+        out, pred_bev_mask = self.SVDB(out, img_feats, batch, img_input_list)
         # out = self.conv_out(encode_features[-1])
         spatial_features = out.dense()
 
