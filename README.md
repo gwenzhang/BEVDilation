@@ -54,7 +54,7 @@ We hope that our BEVDilation can provide a potential LiDAR-centric solution for 
 Please refer to [INSTALL.md](docs/INSTALL.md) for installation.
 
 ### Dataset Preparation
-
+Please follow the instructions from [DAL](https://github.com/HuangJunJie2017/BEVDet). We adopt the same data generation process.
 ```
 BEVDilation/
 ├── data/
